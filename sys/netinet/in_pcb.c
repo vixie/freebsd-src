@@ -728,7 +728,7 @@ in_pcbbind(struct inpcb *inp, struct sockaddr_in *sin, int flags,
 		return (EINVAL);
 	anonport = sin == NULL || sin->sin_port == 0;
 	error = in_pcbbind_setup(inp, sin, &inp->inp_laddr.s_addr,
-	    &inp->inp_lport, flags, cred);
+	    &inp->inp_lport, flags, &inp->inp_inc.inc_fibnum, cred);
 	if (error)
 		return (error);
 	if (__predict_false((error = in_pcbinshash(inp)) != 0)) {
@@ -740,6 +740,8 @@ in_pcbbind(struct inpcb *inp, struct sockaddr_in *sin, int flags,
 	}
 	if (anonport)
 		inp->inp_flags |= INP_ANONPORT;
+	/* The FIB number is in both inp_inc and inp_socket; synchronize. */
+	sosetfib(inp->inp_socket, inp->inp_inc.inc_fibnum);
 	return (0);
 }
 #endif
@@ -910,7 +912,7 @@ in_pcb_lport(struct inpcb *inp, struct in_addr *laddrp, u_short *lportp,
 static int
 in_pcbbind_avail(struct inpcb *inp, const struct in_addr laddr,
     const u_short lport, const int fib, int sooptions, int lookupflags,
-    struct ucred *cred)
+    uint16_t *fibptr, struct ucred *cred)
 {
 	int reuseport, reuseport_lb;
 
@@ -950,7 +952,7 @@ in_pcbbind_avail(struct inpcb *inp, const struct in_addr laddr,
 		 * to any endpoint address, local or not.
 		 */
 		if ((inp->inp_flags & INP_BINDANY) == 0 &&
-		    ifa_ifwithaddr_check((const struct sockaddr *)&sin) == 0)
+		    !ifa_ifwithaddr_check((const struct sockaddr *)&sin, fibptr))
 			return (EADDRNOTAVAIL);
 	}
 
@@ -1004,11 +1006,11 @@ in_pcbbind_avail(struct inpcb *inp, const struct in_addr laddr,
  * calling in_pcbinshash(), or they can just use the resulting
  * port and address to authorise the sending of a once-off packet.
  *
- * On error, the values of *laddrp and *lportp are not changed.
+ * On error, the values of *laddrp, *lportp and *fibptr are not changed.
  */
 int
 in_pcbbind_setup(struct inpcb *inp, struct sockaddr_in *sin, in_addr_t *laddrp,
-    u_short *lportp, int flags, struct ucred *cred)
+    u_short *lportp, int flags, uint16_t *fibptr, struct ucred *cred)
 {
 	struct socket *so = inp->inp_socket;
 	struct in_addr laddr;
@@ -1054,7 +1056,7 @@ in_pcbbind_setup(struct inpcb *inp, struct sockaddr_in *sin, in_addr_t *laddrp,
 
 		/* See if this address/port combo is available. */
 		error = in_pcbbind_avail(inp, laddr, lport, fib, sooptions,
-		    lookupflags, cred);
+		    lookupflags, fibptr, cred);
 		if (error != 0)
 			return (error);
 	}

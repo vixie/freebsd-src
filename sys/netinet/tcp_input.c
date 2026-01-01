@@ -1027,7 +1027,8 @@ findpcb:
 		}
 		inc.inc_fport = th->th_sport;
 		inc.inc_lport = th->th_dport;
-		inc.inc_fibnum = so->so_fibnum;
+		inc.inc_fibnum = (so->so_fibnum != 0) ? so->so_fibnum :
+			m->m_pkthdr.fibnum;
 
 		/*
 		 * Check for an existing connection attempt in syncache if

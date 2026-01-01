@@ -1729,15 +1729,22 @@ done:
 	return (ifa);
 }
 
+/*
+ * Test for existence of an interface having this complete address,
+ * and optionally return the FIB number.
+ */
 int
-ifa_ifwithaddr_check(const struct sockaddr *addr)
+ifa_ifwithaddr_check(const struct sockaddr *addr, uint16_t *fibptr)
 {
 	struct epoch_tracker et;
+	struct ifaddr *ifa;
 	int rc;
 
 	NET_EPOCH_ENTER(et);
-	rc = (ifa_ifwithaddr(addr) != NULL);
+	rc = (ifa = ifa_ifwithaddr(addr)) != NULL;
 	NET_EPOCH_EXIT(et);
+	if (ifa != NULL && fibptr != NULL)
+		*fibptr = ifa->ifa_ifp->if_fib;
 	return (rc);
 }
 

@@ -95,6 +95,7 @@
 #include <net/if_var.h>
 #include <net/if_llatbl.h>
 #include <net/if_types.h>
+#include <net/if_private.h>
 #include <net/route.h>
 #include <net/route/nhop.h>
 #include <net/vnet.h>
@@ -160,11 +161,12 @@ in6_pcbsetport(struct in6_addr *laddr, struct inpcb *inp, struct ucred *cred)
 }
 
 /*
- * Determine whether the inpcb can be bound to the specified address/port tuple.
+ * Determine whether the inpcb can be bound to the specified address/port
+ * tuple, and optionally return the FIB number of the binding interface.
  */
 static int
 in6_pcbbind_avail(struct inpcb *inp, const struct sockaddr_in6 *sin6, int fib,
-    int sooptions, int lookupflags, struct ucred *cred)
+    int sooptions, int lookupflags, uint16_t *fibptr, struct ucred *cred)
 {
 	const struct in6_addr *laddr;
 	int reuseport, reuseport_lb;
@@ -224,6 +226,8 @@ in6_pcbbind_avail(struct inpcb *inp, const struct sockaddr_in6 *sin6, int fib,
 			return (EADDRNOTAVAIL);
 		}
 		NET_EPOCH_EXIT(et);
+		if (ifa != NULL && fibptr != NULL)
+			*fibptr = ifa->ifa_ifp->if_fib;
 	}
 
 	if (lport != 0) {
@@ -336,8 +340,8 @@ in6_pcbbind(struct inpcb *inp, struct sockaddr_in6 *sin6, int flags,
 		    RT_ALL_FIBS;
 
 		/* See if this address/port combo is available. */
-		error = in6_pcbbind_avail(inp, sin6, fib, sooptions, lookupflags,
-		    cred);
+		error = in6_pcbbind_avail(inp, sin6, fib, sooptions,
+		    lookupflags, &inp->inp_inc.inc_fibnum, cred);
 		if (error != 0)
 			return (error);
 
@@ -362,6 +366,8 @@ in6_pcbbind(struct inpcb *inp, struct sockaddr_in6 *sin6, int flags,
 			return (EAGAIN);
 		}
 	}
+	/* The FIB number is in both inp_inc and inp_socket; synchronize. */
+	sosetfib(inp->inp_socket, inp->inp_inc.inc_fibnum);
 	return (0);
 }
 

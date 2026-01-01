@@ -2945,7 +2945,7 @@ unp_connectat(int fd, struct socket *so, struct sockaddr *nam,
 	}
 	if (connreq) {
 		if (SOLISTENING(so2))
-			so2 = solisten_clone(so2);
+			so2 = solisten_clone(so2, 0);
 		else
 			so2 = NULL;
 		if (so2 == NULL) {

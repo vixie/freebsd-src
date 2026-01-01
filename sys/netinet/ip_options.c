@@ -166,8 +166,8 @@ ip_dooptions(struct mbuf *m, int pass)
 				goto bad;
 			}
 			ipaddr.sin_addr = ip->ip_dst;
-			if (ifa_ifwithaddr_check((struct sockaddr *)&ipaddr)
-			    == 0) {
+			if (!ifa_ifwithaddr_check((struct sockaddr *)&ipaddr,
+			    NULL)) {
 				if (opt == IPOPT_SSRR) {
 					type = ICMP_UNREACH;
 					code = ICMP_UNREACH_SRCFAIL;
@@ -362,7 +362,7 @@ dropit:
 				}
 				(void)memcpy(&ipaddr.sin_addr, sin,
 				    sizeof(struct in_addr));
-				if (ifa_ifwithaddr_check((SA)&ipaddr) == 0)
+				if (!ifa_ifwithaddr_check((SA)&ipaddr, NULL))
 					continue;
 				cp[IPOPT_OFFSET] += sizeof(struct in_addr);
 				off += sizeof(struct in_addr);
